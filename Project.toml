@@ -3,6 +3,11 @@ uuid = "2f670286-ad98-48a1-add4-def721795467"
 authors = ["miguel raz <miguelraz@gmail.com> and contributors"]
 version = "0.1.0"
 
+[deps]
+ArtifactUtils = "8b73e784-e7d8-4ea5-973d-377fed4e3bce"
+FileTrees = "72696420-646e-6120-6e77-6f6420746567"
+JSON3 = "0f8b85d8-7281-11e9-16c2-39a750bddbf1"
+
 [compat]
 julia = "1"
 

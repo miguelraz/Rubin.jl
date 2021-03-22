@@ -1,0 +1,13 @@
+[Rubi]
+git-tree-sha1 = "2bf3e9032167c82ac74c43dc8bb947be678283e2"
+
+    [[Rubi.download]]
+    sha256 = "e577d559755b86477049e45bfe4f864f157e54db4ae8411654491772d298f4c4"
+    url = "https://github.com/RuleBasedIntegration/Rubi/archive/4.16.1.0.tar.gz"
+
+[RubiTests]
+git-tree-sha1 = "1148cba18dae2f8939af8bc542233a48cc42cf19"
+
+    [[RubiTests.download]]
+    sha256 = "62f08c56d3d904f8289e9deed35f237a806d18e5e264e41a00463eab33b3b06f"
+    url = "https://github.com/RuleBasedIntegration/MathematicaSyntaxTestSuite/archive/4.16.0.tar.gz"

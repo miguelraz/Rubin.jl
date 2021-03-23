@@ -9,6 +9,7 @@ FileTrees = "72696420-646e-6120-6e77-6f6420746567"
 JSON3 = "0f8b85d8-7281-11e9-16c2-39a750bddbf1"
 
 [compat]
+ArtifactUtils = "0.1"
 julia = "1"
 
 [extras]

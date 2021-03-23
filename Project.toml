@@ -7,6 +7,7 @@ version = "0.1.0"
 ArtifactUtils = "8b73e784-e7d8-4ea5-973d-377fed4e3bce"
 FileTrees = "72696420-646e-6120-6e77-6f6420746567"
 JSON3 = "0f8b85d8-7281-11e9-16c2-39a750bddbf1"
+StructTypes = "856f2bd8-1eba-4b0a-8007-ebc267875bd4"
 
 [compat]
 julia = "1"

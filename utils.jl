@@ -337,7 +337,6 @@ vtests = parse(testfile, RubiTests)
 @test vtests[3].iscomment
 @test vtests[9].iscomment
 
-StructTypes.StructType(::Type{IntRuleTestSection}) = StructTypes.Struct();
 
 # TODO swap out the loads
 function findtreefolder(::Type{RubiRules})
@@ -372,6 +371,9 @@ end
 vtests = load(RubiTests);
 @test length(vtests) == 72957
 
+# For JSON3 writing
+StructTypes.StructType(::Type{IntRuleTest}) = StructTypes.Struct();
+
 """
 Write `vtests` into a `inttests.json` file in Rubin.jl/src, where `vtests`
 is defined as
@@ -379,7 +381,7 @@ is defined as
 vtests = load(RubiRules)
 ```
 """
-function write(vtests::Vector{IntRuleCapture}, ::Type{RubiTests})
+function write(vtests::Vector{IntRuleTest}, ::Type{RubiTests})
 	# Hat tip to Jacob Quinn 🎩 and the #data gang
 	# Find the Rubin root dir in an OS independent way
 	targetpath = joinpath(pkgdir(Rubin), "src", "rubitests.json")

@@ -16,6 +16,7 @@ using Artifacts
 using FileTrees
 using JSON3
 using StructTypes
+using Logging
 
 # TODO mark as constants
 rubi = artifact"Rubi"
@@ -177,7 +178,7 @@ vstructs = load(RubiRules)
 function write(vstructs::Vector{IntRuleCapture}, ::Type{RubiRules})
 	# hat tip to Jacob Quinn and the #data gang
 	# Find the Rubin root dir in an OS independent way
-	targetpath = joinpath(pkgdir(Rubin), "src", "intrules.json")
+	targetpath = joinpath(pkgdir(Rubin), "src", "rubirules.json")
 	# JSON3 way to write to a file with 💃 pretty printing 💃
 	open(targetpath, "w") do f
 		JSON3.pretty(f, JSON3.write(vstructs))
@@ -188,10 +189,18 @@ end
 ##################################################################
 # Chapter 2:
 #        The friggin' tests
+#
 # GOALS: ⚽
 #1. Read MathematicaSyntaxTestSuite into a huge JSON Array
 #2. Add metadata, facts, number, filename, test number
 #3. Save to a single file.
+#
+## Note: They claim 72944 tests total in the website, 
+# but we must care about the ones that are commented
+#
+#                  💪 Currently at 72957 💪, 
+#                          with 8        missing
+#                            Wermer book missing
 ##################################################################
 
 ## Regex tests
@@ -223,6 +232,9 @@ headerregex = r"\(\*(.+)\*\)";
 grep '(* {' | wc detects 284 commented cases at time of writing
 
 # Fields:
+	- filename
+	- path
+	- header
 	- integrand
 	- variable
 	- steps
@@ -230,6 +242,8 @@ grep '(* {' | wc detects 284 commented cases at time of writing
 	- iscomment
 """
 Base.@kwdef struct IntRuleTest
+	filename::String =""
+	path::String = ""
 	integrand::String = ""
 	variable::String = ""
 	steps::String = "" # Yeah sure, this could be an Int but I'm 🏈 punting.
@@ -237,7 +251,6 @@ Base.@kwdef struct IntRuleTest
 	iscomment::Bool = false
 end
 
-# Note: They claim 72944 tests total in the website, but we must care about the ones that are commented
 # header: string - to print testset and @async regions
 # tests: Vec{IntRuleTest} - to write all the tests
 Base.@kwdef struct IntRuleTestSection
@@ -262,71 +275,57 @@ function Base.parse(file, ::Type{RubiTests})
 	# This regex globs up everything (*InsideTheirCommentSyntax*)
 	headerregex = r"\(\*(.+)\*\)"
 	# This regex globs up the 4 entries in {a,format,like,this}
-	inttestregex = r"{(.+),(.+),(.+),(.+)}"
+	# TODO Fix those 5 missing cases in issue
+	inttestregex = r"{(.+),(.+),(.+),(.+)?}"
+	rubi = artifact"RubiTests"
 	path = relpath(file)
 
 	header = ""
 	tests = IntRuleTest[]
-	sections = IntRuleTestSection[]
 	for line in readlines(file)
 		# Skip the `(* ::Subsection...` and `(* ::Subsubsection...` lines
 		isempty(line) && continue	
 		startswith(line, "(* ::") && continue
-
-		# By inspection, headers NEVER contain '{' or '}'
-		# ASSUME: All inttests are preceded by a header
-		if !occursin(r"{|}", line)
-			# We know it's a header here, so let's update the to the new value
-			if isempty(tests)
-				# Since tests vector is empty, just continue
+		# If it's a test, push it
+		if occursin(r"{", line) && occursin(r"}", line)
 				# TODO Handle this better? We're losing information here
 				# Perhaps adding a hierarchy to the section or subsection is good
-				m = match(headerregex, line)
-				header = m.captures[1] 
+			try
+				m = match(inttestregex, line).captures
+			catch
+				@warn "inttestregex did not capture int test line"
+				@warn line
+				@warn file
 				continue
-			else
-				# Test vector is not empty, AND we ran into a header
-				# therefore
-				# ASSUME test vec is not empty
-				# ASSUME sections vec is not empty
-				# 1. push tests to section vec
-				# THEN
-				# 1. update to the new header
-				# 2. update to empty test vec
-				#@info "pushed to sections"
-				push!(sections, IntRuleTestSection(filename = file,
-												   path = path,
-												   header = header,
-												   tests = tests))
-				# 🆙 Update the header AFTER we've pushed the tests to the vector
-				header = match(headerregex, line).captures[1]
-				tests = IntRuleTest[]
 			end
-		else
-			# We know it's a integration test line now, let's capture it! 💪
-			# THEN push the capture into the test vec
 			m = match(inttestregex, line).captures
 
-			# We need to know 5 things: ✋
+			# We need to know 7 things:
 			# 1. integrand
 			# 2. variable to integrate
 			# 3. steps taken by rubi
 			# 4. optimal answer
 			# 5. if it's commented
+			# 6. path
+			# 7. filename
 			integrand, variable, steps, optimal = (m...,)
 			iscomment = startswith(line, "(* {")
+			path = relpath(file, rubi) # Fix this global?
+			filename = splitpath(file)[end]
 			#@info "pushed to test"
 			push!(tests, IntRuleTest(integrand = integrand, variable = variable,
-									 steps = steps, optimal = optimal, iscomment = iscomment))
+									 path = path, filename =  filename,
+									 steps = steps, optimal = optimal,
+									 iscomment = iscomment))
+		elseif startswith("(*", line) && endswith("*)", line)
+		# 🆙 Update the header
+			header = match(headerregex, line).captures[1]
+		else 
+			continue
 		end
 	end
-
 	# Remember! Push the last section!
-	# Because you don't necessarily meet a new header when the file ends.
-	#@info "LAST push"
-	push!(sections, IntRuleTestSection(filename = file, path = path,
-									   header = header, tests = tests))
-	sections
+	tests
 end
 
 ## Test the test parsing function
@@ -334,9 +333,9 @@ end
 #testfile = "/home/mrg/.julia/artifacts/1148cba18dae2f8939af8bc542233a48cc42cf19/MathematicaSyntaxTestSuite-4.16.0/5 Inverse trig functions/5.5 Inverse secant/5.5.2 Inverse secant functions.m";
 testfile = "parsetest.m"
 vtests = parse(testfile, RubiTests)
-@test length(vtests) == 2
-@test vtests[1].tests[3].iscomment
-@test vtests[2].tests[5].iscomment
+@test length(vtests) == 11
+@test vtests[3].iscomment
+@test vtests[9].iscomment
 
 StructTypes.StructType(::Type{IntRuleTestSection}) = StructTypes.Struct();
 
@@ -359,17 +358,19 @@ function load(::Type{RubiTests})
 	rubitests = artifact"RubiTests"
 	intfiles = joinpath(rubitests, "MathematicaSyntaxTestSuite-4.16.0")
 	fs = FileTree(intfiles)
-	rm(fs, r"LICENSE|README.md")
+	# Wester problems has an irregular format, see issue # 3
+	rm(fs, r"LICENSE|README.md|Wester Problems.m")
 	@info fs
 	parsedstructs = FileTrees.load(fs) do file
 		parse(string(path(file)), RubiTests)
 	end
 	vtests = reducevalues(vcat, parsedstructs)
-	#7032 == length(vtests) || error("Please alert @miguelraz, something has 💥")
+	72957 == length(vtests) || error("Please alert @miguelraz, something has 💥")
 	vtests
 end
 
 vtests = load(RubiTests);
+@test length(vtests) == 72957
 
 """
 Write `vtests` into a `inttests.json` file in Rubin.jl/src, where `vtests`
@@ -381,12 +382,13 @@ vtests = load(RubiRules)
 function write(vtests::Vector{IntRuleCapture}, ::Type{RubiTests})
 	# Hat tip to Jacob Quinn 🎩 and the #data gang
 	# Find the Rubin root dir in an OS independent way
-	targetpath = joinpath(pkgdir(Rubin), "src", "inttests.json")
+	targetpath = joinpath(pkgdir(Rubin), "src", "rubitests.json")
 	# JSON3 way to write to a file with 💃 pretty printing 💃
 	open(targetpath, "w") do f
 		JSON3.pretty(f, JSON3.write(vtests))
 		println(f)
 	end
 end
+
 
 

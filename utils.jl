@@ -1,25 +1,21 @@
-### TODO - setup a proper build.jl script and not have this script run oon a local git clone of
-# TODO extract rules form symja?
-
-#https://github.com/RuleBasedIntegration/Rubi
-#julia> add_artifact!("Artifacts.toml", "Rubi", "https://github.com/RuleBasedIntegration/Rubi/archive/4.16.1.0.tar.gz", force=true)
-
-#https://github.com/RuleBasedIntegration/MathematicaSyntaxTestSuite
+##################################################################
+##  Chapter 1: Loading the damn thing.
 #
-#julia> add_artifact!("Artifacts.toml", "RubiTests", "https://github.com/RuleBasedIntegration/MathematicaSyntaxTestSuite/archive/4.16.0.tar.gz", force=true)
-#julia> Pkg.instantiate()
+# File for parsing the RubiRules and dumping them into a pretty printed JSON
+# in your Rubin.jl/src dir.
+#
+# Here are the commands to download the artifacts:
+# RUN THEM!
+# using Pkg
+# Pkg.instantiate()
+##################################################################
+
 using Rubin
+using Test
 using Artifacts
 using FileTrees
 using JSON3
-using Test
-
-# How to test artifact is properly installed?
-#@test run(`ls $(artifact"Rubi")`)
-#Pkg.Artifacts.ensure_artifact_installed("Rubi", "Artifacts.toml")
-#OR
-#Pkg.Artifacts.artifact_exists(hash::SHA1)
-#@test run(`ls $(artifact"RubiTests")`)
+using StructTypes
 
 # TODO mark as constants
 rubi = artifact"Rubi"
@@ -29,24 +25,23 @@ abstract type AbstractRubiParser end
 struct RubiRules <: AbstractRubiParser end
 struct RubiTests <: AbstractRubiParser end
 
-#0 Design goals:
-#1. read Rules into a huge JSON array (with FileTrees.jl)
+## Design goals:
+#1. Read Rules into a huge JSON array (with FileTrees.jl)
 #2. Add metadata, facts, number, filename
-#3. save to a single file
+#3. Save to a single file
 
-# Steps:
+## Steps:
 # 1. Read artifact dir into a FileTree
-
 # 2. Come up with a function to parse the files
 # INPUT examples:
-#(* ::Subsection::Closed:: *)
-#(* 1.1.1.1 (a+b x)^m *)
-#Int[1/x_, x_Symbol] := Log[x]
-#Int[x_^m_., x_Symbol] := x^(m + 1)/(m + 1) /; FreeQ[m, x] && NeQ[m, -1]
+# (* ::Subsection::Closed:: *)
+# (* 1.1.1.1 (a+b x)^m *)
+# Int[1/x_, x_Symbol] := Log[x]
+# Int[x_^m_., x_Symbol] := x^(m + 1)/(m + 1) /; FreeQ[m, x] && NeQ[m, -1]
 # (Int[...]) := (...) /; (...)
 # ^ lhs          ^rhs     ^facts
+#
 # BUT we can also have
-# ...
 # (* Int[Sqrt[a_.+b_.*x_]*(A_.+B_.*x_)/(Sqrt[c_.+d_.*x_]*Sqrt[e_.+f_.*x_ ]*Sqrt[g_.+h_.*x_]),x_Symbol] :=  B*Sqrt[a+b*x]*Sqrt[e+f*x]*Sqrt[g+h*x]/(f*h*Sqrt[c+d*x]) - B*(b*g-a*h)/(2*f*h)*Int[Sqrt[e+f*x]/(Sqrt[a+b*x]*Sqrt[c+d*x]*Sqrt[g+ h*x]),x] + B*(d*e-c*f)*(d*g-c*h)/(2*d*f*h)*Int[Sqrt[a+b*x]/((c+d*x)^(3/2)*Sqrt[ e+f*x]*Sqrt[g+h*x]),x] /; FreeQ[{a,b,c,d,e,f,g,h,A,B},x] &&  EqQ[2*A*d*f-B*(d*e+c*f),0] *)
 # (* Int[...] := (...) ;/ (...) *)
 # ^comment syntax around lhs := rhs ;/ facts *) closing comment syntax
@@ -56,15 +51,13 @@ struct RubiTests <: AbstractRubiParser end
 # Case 2:
 # (* (Int.?) := (.+)(|\/; (.+)) 
 #
-#
-# SOLUTION:
+## SOLUTION:
 # With the help of Regex101.com:
-# (Int.+) := (.+)(|\/; (.+))
+# (Int.+) := (.+)(?: \/; \*\))
 # ^glob lhs,
 #             ^glob rhs
-#                  ^glob facts, if any exist
-# REMEMBER: Add a marker if test is commented
-
+#                  ^glob facts, if any exist, ignore if it doesn't
+# Let's now write some tests for the regex.
 regextest = [
 """(* ::Subsection::Closed:: *)""",
 """(* 1.1.1.1 (a+b x)^m *)""",
@@ -73,29 +66,35 @@ regextest = [
 """(* Int[Sqrt[a_.+b_.*x_]*(A_.+B_.*x_)/(Sqrt[c_.+d_.*x_]*Sqrt[e_.+f_.*x_ ]*Sqrt[g_.+h_.*x_]),x_Symbol] :=  B*Sqrt[a+b*x]*Sqrt[e+f*x]*Sqrt[g+h*x]/(f*h*Sqrt[c+d*x]) - B*(b*g-a*h)/(2*f*h)*Int[Sqrt[e+f*x]/(Sqrt[a+b*x]*Sqrt[c+d*x]*Sqrt[g+ h*x]),x] + B*(d*e-c*f)*(d*g-c*h)/(2*d*f*h)*Int[Sqrt[a+b*x]/((c+d*x)^(3/2)*Sqrt[ e+f*x]*Sqrt[g+h*x]),x] /; FreeQ[{a,b,c,d,e,f,g,h,A,B},x] &&  EqQ[2*A*d*f-B*(d*e+c*f),0] *)""",
 """(* Int[1/(a_+b_.*x_^5),x_Symbol] := With[{r=Numerator[Rt[a/b,5]],  s=Denominator[Rt[a/b,5]]}, r/(5*a)*Int[1/(r+s*x),x] + 2*r/(5*a)*Int[(r-1/4*(1-Sqrt[5])*s*x)/(r^2-1/2*(1-Sqrt[5])*r*s*x+s^ 2*x^2),x] + 2*r/(5*a)*Int[(r-1/4*(1+Sqrt[5])*s*x)/(r^2-1/2*(1+Sqrt[5])*r*s*x+s^ 2*x^2),x]] /; FreeQ[{a,b},x] && PosQ[a/b] *)""",
 """(* Int[1/Sqrt[a_+b_.*x_^3],x_Symbol] := With[{q=Rt[b/a,3]}, -Sqrt[2]*(1+Sqrt[3])*(1+Sqrt[3]+q*x)^2*Sqrt[(1+q^3*x^3)/(1+Sqrt[3]+ q*x)^4]/(3^(1/4)*q*Sqrt[a+b*x^3])* EllipticF[ArcSin[(-1+Sqrt[3]-q*x)/(1+Sqrt[3]+q*x)],-7-4*Sqrt[3]]]  /; FreeQ[{a,b},x] && PosQ[a] *)""",
-"""(* Int[Sqrt[c_+d_.*x_^2]/((a_+b_.*x_^2)*Sqrt[e_+f_.*x_^2]),x_Symbol] :=   Sqrt[c+d*x^2]*Sqrt[c*(e+f*x^2)/(e*(c+d*x^2))]/(a*Rt[d/c,2]*Sqrt[e+f* x^2])* EllipticPi[1-b*c/(a*d),ArcTan[Rt[d/c,2]*x],1-c*f/(d*e)] /;  FreeQ[{a,b,c,d,e,f},x] && PosQ[d/c] *)"""]
-intrulesregexfacts = r"(Int.+) := (.+) \/; (.+)(?: \*\))"
-intrulesregexsimple = r"^(Int.+) := (.+)"
-commenttest = """(* Int[Sqrt[a_.+b_.*x_]*(A_.+B_.*x_)/(Sqrt[c_.+d_.*x_]*Sqrt[e_.+f_.*x_ ]*Sqrt[g_.+h_.*x_]),x_Symbol] :=  B*Sqrt[a+b*x]*Sqrt[e+f*x]*Sqrt[g+h*x]/(f*h*Sqrt[c+d*x]) - B*(b*g-a*h)/(2*f*h)*Int[Sqrt[e+f*x]/(Sqrt[a+b*x]*Sqrt[c+d*x]*Sqrt[g+ h*x]),x] + B*(d*e-c*f)*(d*g-c*h)/(2*d*f*h)*Int[Sqrt[a+b*x]/((c+d*x)^(3/2)*Sqrt[ e+f*x]*Sqrt[g+h*x]),x] /; FreeQ[{a,b,c,d,e,f,g,h,A,B},x] &&  EqQ[2*A*d*f-B*(d*e+c*f),0] *)"""
+"""(* Int[Sqrt[c_+d_.*x_^2]/((a_+b_.*x_^2)*Sqrt[e_+f_.*x_^2]),x_Symbol] :=   Sqrt[c+d*x^2]*Sqrt[c*(e+f*x^2)/(e*(c+d*x^2))]/(a*Rt[d/c,2]*Sqrt[e+f* x^2])* EllipticPi[1-b*c/(a*d),ArcTan[Rt[d/c,2]*x],1-c*f/(d*e)] /;  FreeQ[{a,b,c,d,e,f},x] && PosQ[d/c] *)"""];
 
-vregex = match.(intrulesregexsimple, regextest)
-rulesregex = match.(intrulesregexfacts, regextest)
+## Where the 🌠 magic happens 🌠
+intrulesregexfacts = r"(Int.+) := (.+) \/; (.+)(?: \*\))";
+intrulesregexsimple = r"^(Int.+) := (.+)";
+commenttest = """(* Int[Sqrt[a_.+b_.*x_]*(A_.+B_.*x_)/(Sqrt[c_.+d_.*x_]*Sqrt[e_.+f_.*x_ ]*Sqrt[g_.+h_.*x_]),x_Symbol] :=  B*Sqrt[a+b*x]*Sqrt[e+f*x]*Sqrt[g+h*x]/(f*h*Sqrt[c+d*x]) - B*(b*g-a*h)/(2*f*h)*Int[Sqrt[e+f*x]/(Sqrt[a+b*x]*Sqrt[c+d*x]*Sqrt[g+ h*x]),x] + B*(d*e-c*f)*(d*g-c*h)/(2*d*f*h)*Int[Sqrt[a+b*x]/((c+d*x)^(3/2)*Sqrt[ e+f*x]*Sqrt[g+h*x]),x] /; FreeQ[{a,b,c,d,e,f,g,h,A,B},x] &&  EqQ[2*A*d*f-B*(d*e+c*f),0] *)""";
+
+## Regex tests
+# Gotta make sure we are slurping up the things we care about, without too much cruft.
+vregex = match.(intrulesregexsimple, regextest);
+rulesregex = match.(intrulesregexfacts, regextest);
 @test isnothing(vregex[1])
 @test isnothing(vregex[2])
 @test vregex[3].captures[1] == "Int[1/x_, x_Symbol]"
 @test vregex[3].captures[2] == "Log[x]"
-#@test vregex[3].captures[3] == ""
 @test rulesregex[end].captures[3] == " FreeQ[{a,b,c,d,e,f},x] && PosQ[d/c]"
 
-# OK, so now we can jam everything into a JSON thingy.
-# We want to include the 
-# pathname: string
-# filename: string
-# rulenumber: Int
-# commented: bool
-# lhs: string
-# rhs: string
-# givens (not atomized)
+"""
+# Structs for parsing
+- Useful in conjunction with StructTypes.jl and dumping everything into a JSON
+- Fields:
+	pathname: String
+	filename: String
+	rulenumber: Int
+	commented: Bool
+	lhs: String
+	rhs: String
+	givens: String (not atomize)
+"""
 Base.@kwdef struct IntRuleCapture
 	pathname::String = ""
 	filename::String = ""
@@ -105,6 +104,8 @@ Base.@kwdef struct IntRuleCapture
 	lhs::String = ""
 	givens::String	 = ""
 end
+
+## Auxiliary functions for later
 lhs(cap::RegexMatch) = cap.captures[1]
 rhs(cap::RegexMatch) = cap.captures[2]
 givens(cap::RegexMatch) = cap.captures[3]
@@ -113,14 +114,16 @@ iscommented(cap::RegexMatch) = startswith(cap.captures[1], '(')
 # Input: A file
 # Output: An array of structs like IntRuleCapture
 # TODO: Figure out rule numbers
-function Base.parse(file, x::RubiRules)
+function Base.parse(file, ::Type{RubiRules})
 	regex = r"(Int.+) := (.+) \/; (.+)( \*\))?"
-	#regex = r"^(Int.+) := (.+)"
+	# Capture the lines that fit the regex, skip the empty ones, put it all into 
+	# a big array. Gotta love Julia!
 	caps = [i for i in match.(regex, readlines(file)) if !isnothing(i)]
 	vlhs = lhs.(caps)
 	vrhs = rhs.(caps)
 	vgivens = givens.(caps)
 	vcomments = iscommented.(caps)
+	rubi = artifact"Rubi"
 	path = relpath(file, rubi) # Fix this global?
 	filename = splitpath(file)[end]
 	# Assemble and return 📦 ➡
@@ -133,58 +136,71 @@ function Base.parse(file, x::RubiRules)
 					comment = vcomments[i]) for i in 1:length(caps)]
 end
 
-# 3. Lazy load the files
-intfiles = rubidir["Rubi-4.16.1.0/Rubi/IntegrationRules"]
+## Testing nothing's borked with finding the files and making a TreeFile of them
+intfiles = rubidir["Rubi-4.16.1.0/Rubi/IntegrationRules"];
 parsedstructs = FileTrees.load(intfiles) do file
-	parse(string(path(file)), RubiRules())
-end
-vstructs = reducevalues(vcat, parsedstructs)
+	parse(string(path(file)), RubiRules)
+end;
+vstructs = reducevalues(vcat, parsedstructs);
 @test 7032 == length(vstructs)
 
 """
 Loads the RubiRules into a vector.
 See `IntRuleCapture` for the fields.
 We use FileTrees.jl, so starting Julia with multiple threads should speed this up,
-but it feels
+but it feels like it could be faster ... ?
 """
-function  load(::Type{RubiRules})
+function load(::Type{RubiRules})
 	rubi = artifact"Rubi"
 	intfiles = joinpath(rubi, "Rubi-4.16.1.0", "Rubi", "IntegrationRules")
 	files = FileTree(intfiles)
 	parsedstructs = FileTrees.load(files) do file
-		parse(string(path(file)), RubiRules())
+		parse(string(path(file)), RubiRules)
 	end
 	vstructs = reducevalues(vcat, parsedstructs)
 	7032 == length(vstructs) || error("Please alert @miguelraz, something has 💥")
 	vstructs
 end
 
-using JSON3, StructTypes
+## Writing to JSON! At last!
 # Defining this straight from the JSON3 documentation
-# hat tip to Jacob Quinn and the #data gang
-StructTypes.StructType(::Type{IntRuleCapture}) = StructTypes.Struct()
-json = JSON3.write(vstructs)
+StructTypes.StructType(::Type{IntRuleCapture}) = StructTypes.Struct();
+# For debugging
+#json = JSON3.write(vstructs);
+"""
+Write `vstructs` into a `intrules.json` file in Rubin.jl/src, where `vstructs`
+is defined as
+```julia
+vstructs = load(RubiRules)
+```
+"""
+function write(vstructs::Vector{IntRuleCapture}, ::Type{RubiRules})
+	# hat tip to Jacob Quinn and the #data gang
+	# Find the Rubin root dir in an OS independent way
+	targetpath = joinpath(pkgdir(Rubin), "src", "intrules.json")
+	# JSON3 way to write to a file with 💃 pretty printing 💃
+	open(targetpath, "w") do f
+		JSON3.pretty(f, JSON3.write(vstructs))
+		println(f)
+	end
+end
 
-# We can also just use JSON
-# JSON.json(vstructs)
-targetpath = joinpath(pkgdir(Rubin), "src", "intrules.json")
-
-# YASSS WRITE IT
-#open(targetpath, "w") do f
-#JSON3.pretty(f, JSON3.write(vstructs))
-#println(f)
-#end
-
-# GOALS!
-#1. read MathematicaSyntaxTEstSuite into a huge JSON ArraY
+##################################################################
+# Chapter 2:
+#        The friggin' tests
+# GOALS: ⚽
+#1. Read MathematicaSyntaxTestSuite into a huge JSON Array
 #2. Add metadata, facts, number, filename, test number
-#3. save to a single file.
+#3. Save to a single file.
+##################################################################
+
+## Regex tests
+# Tricky, gotta make sure we don't miss any of them!
 inttests = 
 ["{Sqrt[2*x + 1], x, 1, (1/3)*(1 + 2*x)^(3/2)}",
-"(* {Sqrt[2*x + 1], x, 1, (1/3)*(1 + 2*x)^(3/2)} *)"]
-
-inttestregex = r"{(.+),(.+),(.+),(.+)}"
-res = match.(inttestregex, inttests)
+"(* {Sqrt[2*x + 1], x, 1, (1/3)*(1 + 2*x)^(3/2)} *)"];
+inttestregex = r"{(.+),(.+),(.+),(.+)}";
+res = match.(inttestregex, inttests);
 @test res[1].captures[1] == "Sqrt[2*x + 1]"
 @test res[1].captures[2] == " x"
 @test res[1].captures[3] == " 1"
@@ -194,9 +210,11 @@ res = match.(inttestregex, inttests)
 @test res[2].captures[3] == " 1"
 @test res[2].captures[4] == " (1/3)*(1 + 2*x)^(3/2)"
 
-headerregex = r"\(\*(.+)\*\)"
+## Header regex
+# We'll likely need some metadata to alleviate pain when updating the codebase.
+# This should help mitigate some of those aches.
+headerregex = r"\(\*(.+)\*\)";
 @test match(headerregex, "(*Integrands of the form x^m PolyLog[n, a x^q]*)").captures[1] == "Integrands of the form x^m PolyLog[n, a x^q]"
-
 
 """
  Sample input: {Sqrt[2*x + 1], x,   1, (1/3)*(1 + 2*x)^(3/2)}
@@ -207,7 +225,7 @@ grep '(* {' | wc detects 284 commented cases at time of writing
 Base.@kwdef struct IntRuleTest
 	integrand::String = ""
 	variable::String = ""
-	steps::Int = 1
+	steps::String = "" # Yeah sure, this could be an Int but I'm 🏈 punting.
 	optimal::String = ""
 	iscomment::Bool = false
 end
@@ -232,13 +250,13 @@ end
 # TODO: finer metadata with the headers in the file
 So that testset nesting can happen
 """
-function inttestfileparser(file)
+function Base.parse(file, ::Type{RubiTests})
 	# TODO add nesting to subsubsections
-	#
 	# This regex globs up everything (*InsideTheirCommentSyntax*)
 	headerregex = r"\(\*(.+)\*\)"
 	# This regex globs up the 4 entries in {a,format,like,this}
 	inttestregex = r"{(.+),(.+),(.+),(.+)}"
+	path = relpath(file)
 
 	header = ""
 	tests = IntRuleTest[]
@@ -264,12 +282,10 @@ function inttestfileparser(file)
 				# therefore
 				# ASSUME test vec is not empty
 				# ASSUME sections vec is not empty
-				# 1. push the sections
+				# 1. push tests to section vec
 				# THEN
 				# 1. update to the new header
 				# 2. update to empty test vec
-				# 3. update to empty section vec
-				path = relpath(file)
 				push!(sections, IntRuleTestSection(filename = file,
 												   path = path,
 												   header = header,
@@ -277,7 +293,6 @@ function inttestfileparser(file)
 				# 🆙 Update the header AFTER we've pushed the tests to the vector
 				header = match(headerregex, line).captures[1]
 				tests = IntRuleTest[]
-				sections = IntRuleTestSection[]
 			end
 		else
 			# We know it's a integration test line now, let's capture it! 💪
@@ -296,5 +311,19 @@ function inttestfileparser(file)
 									 steps = steps, optimal = optimal, iscomment = iscomment))
 		end
 	end
+
+	# Remember! Push the last section!
+	# Because you don't necessarily meet a new header when the file ends.
+	push!(sections, IntRuleTestSection(filename = file, path = path,
+									   header = header, tests = tests))
 	sections
 end
+
+## Test the test parsing function
+# Because that is one chonky boii
+testfile = "/home/mrg/.julia/artifacts/1148cba18dae2f8939af8bc542233a48cc42cf19/MathematicaSyntaxTestSuite-4.16.0/5 Inverse trig functions";
+parse(testfile, RubiTests)
+
+
+
+

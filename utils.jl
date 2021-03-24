@@ -393,4 +393,28 @@ function write(vtests::Vector{IntRuleTest}, ::Type{RubiTests})
 end
 
 
+##################################################################
+# Chapter 3:
+#        Woflram -> Julia
+#
+# GOALS: ⚽    
+# 1. OUTPUT: tests/rubitests.jl with all the test files written in plain Julia
+#	- Format shown below
+# 2. OUTPUT: src/rubirules.jl with all the rules written in plain Julia
+#   - Format: show below
+#
+# Approaches:
+# 1. Make a small dict with Mathematica => Julia translations, 
+#	THEN search and replace every string on both sides
+# 2. use a while loop with the replacings, if it doesn't change go on.
+# OOOPS
+#  - All fun and games until E^x and E^(x+2) showed up - unclear how to deal 
+#    with parens 💩
+# 3. Use a library like RBNF.jl
+#
+#
+# Options:
+# 1. Symbolics.jl vs Metatheory.jl .... vs Rust egraphs?
+##################################################################
+
 

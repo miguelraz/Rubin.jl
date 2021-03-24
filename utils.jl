@@ -221,6 +221,13 @@ headerregex = r"\(\*(.+)\*\)";
                ^query		    ^var ^steps      ^optimal answer
 # NOTE: 
 grep '(* {' | wc detects 284 commented cases at time of writing
+
+# Fields:
+	- integrand
+	- variable
+	- steps
+	- optimal
+	- iscomment
 """
 Base.@kwdef struct IntRuleTest
 	integrand::String = ""
@@ -286,6 +293,7 @@ function Base.parse(file, ::Type{RubiTests})
 				# THEN
 				# 1. update to the new header
 				# 2. update to empty test vec
+				#@info "pushed to sections"
 				push!(sections, IntRuleTestSection(filename = file,
 												   path = path,
 												   header = header,
@@ -307,6 +315,7 @@ function Base.parse(file, ::Type{RubiTests})
 			# 5. if it's commented
 			integrand, variable, steps, optimal = (m...,)
 			iscomment = startswith(line, "(* {")
+			#@info "pushed to test"
 			push!(tests, IntRuleTest(integrand = integrand, variable = variable,
 									 steps = steps, optimal = optimal, iscomment = iscomment))
 		end
@@ -314,6 +323,7 @@ function Base.parse(file, ::Type{RubiTests})
 
 	# Remember! Push the last section!
 	# Because you don't necessarily meet a new header when the file ends.
+	#@info "LAST push"
 	push!(sections, IntRuleTestSection(filename = file, path = path,
 									   header = header, tests = tests))
 	sections
@@ -321,9 +331,62 @@ end
 
 ## Test the test parsing function
 # Because that is one chonky boii
-testfile = "/home/mrg/.julia/artifacts/1148cba18dae2f8939af8bc542233a48cc42cf19/MathematicaSyntaxTestSuite-4.16.0/5 Inverse trig functions";
-parse(testfile, RubiTests)
+#testfile = "/home/mrg/.julia/artifacts/1148cba18dae2f8939af8bc542233a48cc42cf19/MathematicaSyntaxTestSuite-4.16.0/5 Inverse trig functions/5.5 Inverse secant/5.5.2 Inverse secant functions.m";
+testfile = "parsetest.m"
+vtests = parse(testfile, RubiTests)
+@test length(vtests) == 2
+@test vtests[1].tests[3].iscomment
+@test vtests[2].tests[5].iscomment
 
+StructTypes.StructType(::Type{IntRuleTestSection}) = StructTypes.Struct();
 
+# TODO swap out the loads
+function findtreefolder(::Type{RubiRules})
+	rubi = artifact"Rubi"
+	intfiles = joinpath(rubi, "Rubi-4.16.1.0", "Rubi", "IntegrationRules")
+	files = FileTree(intfiles)
+end
+function findtreefolder(::Type{RubiTests})
+	rubitests = artifact"RubiTests"
+	intfiles = joinpath(rubitests, "MathematicaSyntaxTestSuite-4.16.0")
+	files = FileTree(intfiles)
+end
+"""
+	Loads the RubiRules into a vector.
+See `IntTestSections` for the fields.
+"""
+function load(::Type{RubiTests})
+	rubitests = artifact"RubiTests"
+	intfiles = joinpath(rubitests, "MathematicaSyntaxTestSuite-4.16.0")
+	fs = FileTree(intfiles)
+	rm(fs, r"LICENSE|README.md")
+	@info fs
+	parsedstructs = FileTrees.load(fs) do file
+		parse(string(path(file)), RubiTests)
+	end
+	vtests = reducevalues(vcat, parsedstructs)
+	#7032 == length(vtests) || error("Please alert @miguelraz, something has 💥")
+	vtests
+end
+
+vtests = load(RubiTests);
+
+"""
+Write `vtests` into a `inttests.json` file in Rubin.jl/src, where `vtests`
+is defined as
+```julia
+vtests = load(RubiRules)
+```
+"""
+function write(vtests::Vector{IntRuleCapture}, ::Type{RubiTests})
+	# Hat tip to Jacob Quinn 🎩 and the #data gang
+	# Find the Rubin root dir in an OS independent way
+	targetpath = joinpath(pkgdir(Rubin), "src", "inttests.json")
+	# JSON3 way to write to a file with 💃 pretty printing 💃
+	open(targetpath, "w") do f
+		JSON3.pretty(f, JSON3.write(vtests))
+		println(f)
+	end
+end
 
 

@@ -446,9 +446,50 @@ end
 sympydictfixes = PyDict(Dict("Int[*x]" => "integrate(*x)",
 							 "ProductLog[*x]" => "productlog(*x)",
 							 "Gamma[*x]" => "gamma(*x)",
+							 # Following convention from SpecialFunctions.jl
+							 "EllipticF[*x]" => "ellipf(*x)",
+							 # TODO add Fresnel, FresnelS, FresnelC
 							 #"E^x" => "exp(x)",
 							 #"E^(*x)" => "exp(*x)",
-							 ))
+							 "Abs[*x]" => "abs(*x)",
+							 "AppellF1[*x]" => "appelf1(*x)",
+							 "CannotIntegrate[*x]" => "cannotintegrate(*x)",
+							 "CoshIntegral[*x]" => "coshintegral(*x)",
+							 "CosIntegral[*x]" => "cosintegral(*x)",
+							 "Defer[*x]" => "defer(*x)",
+							 "Derivative[*x]" => "derivative(*x)",
+							 "EllipticE[*x]" => "ellipe(*x)",
+							 "EllipticF[*x]" => "ellipf(*x)",
+							 "EllipticK[*x]" => "ellipk(*x)",
+							 "EllipticPi[*x]" => "ellippi(*x)",
+							 "Erf[*x]" => "erf(*x)",
+							 "Erfc[*x]" => "erfc(*x)",
+							 "Erfi[*x]" => "erfi(*x)",
+							 "Expand[*x]" => "expand(*x)",
+							 "ExpIntegralE[*x]" => "expintegrale(*x)",
+							 "ExpIntegralEi[*x]" => "expintegralei(*x)",
+							 #"f[*x]" => f(*x)",
+							 #"F[*x]" => f(*x)",
+							 "F0[*x]" => "f0(*x)",
+							 "FresnelC[*x]" => "fresnelc(*x)",
+							 "FresnelS[*x]" => "fresnels(*x)",
+							 #"g[*x]" => ,
+							 #"Gamma[*x]" => ,
+							 "Hypergeometric2F1[*x]" => "hypergeometric2f1(*x)",
+							 "HypergeometricPFQ[*x]" => "hypergeometricpfq(*x)",
+							 #"If[*x]" => if,
+							 #"Log[*x]" => "log,
+							 "LogGamma[*x]" => "loggamma(*x)",
+							 "LogIntegral[*x]" => "logintegral(*x)",
+							 "PolyGamma[*x]" => "polygamma(*x)",
+							 "PolyLog[*x]" => "polylog(*x)",
+							 "ProductLog[*x]" => "productlog(*x)",
+							 #"sdx[*x]" => ,
+							 "SinhIntegral[*x]" => "sinhintegral(*x)",
+							 "SinIntegral[*x]" => "sinintegral(*x)",
+							 "Unintegrable[*x]" => "unintegrable(*x)",
+							 "Zeta[*x]" => "zeta(*x)",
+							 ));
 @test "integrate(x,x)" == parsetosympy("Int[x,x]",sympydictfixes)
 "integrate(x,x)"
 
@@ -458,7 +499,7 @@ sympydictfixes = PyDict(Dict("Int[*x]" => "integrate(*x)",
 
 ### OOPS:
 # It is clear that many of the "steps" field are being mangled horribly
-steps = [length(v.steps) == 2 for v in vtests]
+steps = [length(v.steps) != 2 for v in vtests]
 @test count(steps) == length(vtests)
 
 

@@ -17,6 +17,8 @@ using FileTrees
 using JSON3
 using StructTypes
 using Logging
+using SymPy
+using PyCall
 
 # TODO mark as constants
 rubi = artifact"Rubi"
@@ -411,10 +413,53 @@ end
 #  - All fun and games until E^x and E^(x+2) showed up - unclear how to deal 
 #    with parens 💩
 # 3. Use a library like RBNF.jl
-#
-#
+# 4. DERP! See if someone else has solved it first!
+# Sympy has a Mathematica parser - from there it should be much simple.
+#  - 
 # Options:
+#
 # 1. Symbolics.jl vs Metatheory.jl .... vs Rust egraphs?
+# # Consider how to propagate assumptions
+# https://julialang.zulipchat.com/#narrow/stream/236639-symbolic-programming/topic/Integration/near/232350734
 ##################################################################
+
+### Notes:
+# Once I have a symbolic sympy expression, I can just turn it into a Julia
+# Julia string with `str(y)`:
+sympy = pyimport("sympy")
+str = py"'Sin[x]^2'";
+mathparser = sympy.parsing.mathematica.mathematica
+y = maths(str)
+res = string(y) # 🚀
+@test "sin(x)^2" == res
+
+## Parser hijinks:
+# Ugh - the sympy.mathematica parser does not accept Int[ ... :(
+# No worries 😅, we can pass in a PyDict with our prefs and have it work!
+function parsetosympy(s,d)
+	s = pystring(PyObject(s))
+    f = sympy.parsing.mathematica.mathematica
+    f(s,d)
+end
+
+# note the *x to slurp all args
+sympydictfixes = PyDict(Dict("Int[*x]" => "integrate(*x)",
+							 "ProductLog[*x]" => "productlog(*x)",
+							 "Gamma[*x]" => "gamma(*x)",
+							 #"E^x" => "exp(x)",
+							 #"E^(*x)" => "exp(*x)",
+							 ))
+@test "integrate(x,x)" == parsetosympy("Int[x,x]",sympydictfixes)
+"integrate(x,x)"
+
+## Parser hijinks:
+# 1. Need to strip underscores and `x_Symbol` 
+# 2.
+
+### OOPS:
+# It is clear that many of the "steps" field are being mangled horribly
+steps = [length(v.steps) == 2 for v in vtests]
+@test count(steps) == length(vtests)
+
 
 

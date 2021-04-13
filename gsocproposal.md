@@ -66,11 +66,24 @@ Additionally, the use of `ArtifactUtils.jl` to setup a reproducible build for ot
 5. A full benchmark run of Rubin.jl vs RUBI - (and include per test case timings in an aggregate format, unlike RUBI.)
 
 ### Deliverables
+#### Before June 7th
 - [X] JSON files of RUBI Rules and RUBI tests
+#### From June 7th to July 12
 - [ ] Mathematica to Julia transpiler, ignoring local scope
-- [ ] Implement 1 Julia symbolic backend
+- [ ] Implement Julia symbolic Backends
+#### Mid term evaluation July 12 - 16
+- Mid Term evaluation
+
 - [ ] Maximize test coverage, benchmark against [12000.org](https://12000.org/my_notes/CAS_integration_tests/index.htm#x1-20001)
-- [ ] Documentation, tutorial videos.
+#### July 16 to August 16
+- [ ] Finish up documentation with Franklin.jl templates, tutorial videos.
+
+### Potential Mentors
+- Shashi Gowda
+	- Contacted for helping with setting up FileTrees.jl to work appropriately.
+- Mason Protter
+	- Contacted for help in strategies for parsing, suggested looking into MathLink.jl and other avenues that were researched but did not pan out.
+- Ying Bo Ma
 
 ### About me
 
@@ -89,3 +102,10 @@ I'm also involved in the Julia D+I efforts, and I've made several spanish speaki
 I wish to be contacted via Slack (I'm Miguel Raz there as well.) if possible, or my email with this application is fine.
 
 I have no other commitments and would be absolutely thrilled to finally complete a GSoC. I owe it to the community.
+
+
+#### Actual motivation
+
+I really hate the fact that Stephen Wolfram has privatized a healthy chunk of resources that public universities must rent every year and cannot be open sourced.
+That's why it's called Rubin.jl, in honor of Vera Rubin, a woman astronomer who was not recognized in her time enough for having though and built amazing things, and
+because this world has enough scientific progress stopped by egomaniacal men just wanting to write their name in every corner of science, progress be damned.
